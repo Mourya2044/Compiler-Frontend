@@ -260,12 +260,12 @@ void buildParsingTable() {
           ACTION[{i, "$"}] = "acc";
         } else {
           // REDUCE A → β
-          string rule = item.lhs + "->";
-
-          for (auto s : item.rhs) rule += s;
-
-          for (string a : FOLLOW[item.lhs]) {
-            ACTION[{i, a}] = "r " + rule;
+          for (int k = 0; k < grammar.size(); k++) {
+            if (grammar[k].lhs == item.lhs && grammar[k].rhs == item.rhs) {
+              for (string a : FOLLOW[item.lhs]) {
+                ACTION[{i, a}] = "r" + to_string(k);
+              }
+            }
           }
         }
       }
@@ -312,20 +312,17 @@ void parseInput(vector<string> tokens) {
 
     // REDUCE
     else if (action[0] == 'r') {
-      string rule = action.substr(2);
+      int prodIndex = stoi(action.substr(1));
 
-      int pos = rule.find("->");
+      Production p = grammar[prodIndex];
 
-      string lhs = rule.substr(0, pos);
-      string rhs = rule.substr(pos + 2);
-
-      int popCount = rhs.size();  // since symbols are 1-char or tokens
+      int popCount = p.rhs.size();
 
       for (int k = 0; k < popCount; k++) st.pop();
 
       int topState = st.top();
 
-      int gotoState = GOTO[{topState, lhs}];
+      int gotoState = GOTO[{topState, p.lhs}];
 
       st.push(gotoState);
     }
