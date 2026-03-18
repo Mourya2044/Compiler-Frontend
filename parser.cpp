@@ -235,27 +235,104 @@ void constructItemSets() {
   }
 }
 
+/* parsing table */
+
+map<pair<int, string>, string> ACTION;
+map<pair<int, string>, int> GOTO;
+
+void buildParsingTable() {
+  for (int i = 0; i < states.size(); i++) {
+    for (auto item : states[i]) {
+      // CASE 1: SHIFT
+      if (item.dot < item.rhs.size()) {
+        string a = item.rhs[item.dot];
+
+        if (terminals.count(a)) {
+          int j = transitions[{i, a}];
+          ACTION[{i, a}] = "s" + to_string(j);
+        }
+      }
+
+      // CASE 2: REDUCE / ACCEPT
+      else {
+        // ACCEPT
+        if (item.lhs == "S'") {
+          ACTION[{i, "$"}] = "acc";
+        } else {
+          // REDUCE A → β
+          string rule = item.lhs + "->";
+
+          for (auto s : item.rhs) rule += s;
+
+          for (string a : FOLLOW[item.lhs]) {
+            ACTION[{i, a}] = "r " + rule;
+          }
+        }
+      }
+    }
+
+    // GOTO table
+    for (string A : nonterminals) {
+      if (transitions.count({i, A})) {
+        GOTO[{i, A}] = transitions[{i, A}];
+      }
+    }
+  }
+}
+
 /* parsing */
 
 void parseInput(vector<string> tokens) {
-  stack<string> st;
+  stack<int> st;
+  st.push(0);
 
   int i = 0;
 
   while (true) {
+    int state = st.top();
     string a = tokens[i];
 
-    if (a == "id" || a == "+" || a == "*" || a == "(" || a == ")") {
-      st.push(a);
+    string action = ACTION[{state, a}];
+
+    cout << "State: " << state << "  Input: " << a << "  Action: " << action
+         << endl;
+
+    // ACCEPT
+    if (action == "acc") {
+      cout << "Input accepted\n";
+      return;
+    }
+
+    // SHIFT
+    else if (action[0] == 's') {
+      int nextState = stoi(action.substr(1));
+      st.push(nextState);
       i++;
-    } else if (a == "$") {
-      cout << "Parsing finished\n";
-      break;
-    } else {
-      cout << "Parse error\n";
+    }
+
+    // REDUCE
+    else if (action[0] == 'r') {
+      string rule = action.substr(2);
+
+      int pos = rule.find("->");
+
+      string lhs = rule.substr(0, pos);
+      string rhs = rule.substr(pos + 2);
+
+      int popCount = rhs.size();  // since symbols are 1-char or tokens
+
+      for (int k = 0; k < popCount; k++) st.pop();
+
+      int topState = st.top();
+
+      int gotoState = GOTO[{topState, lhs}];
+
+      st.push(gotoState);
+    }
+
+    else {
+      cout << "Parsing error\n";
       return;
     }
   }
-
-  cout << "Input accepted\n";
 }

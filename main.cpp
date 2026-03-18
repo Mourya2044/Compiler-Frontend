@@ -10,6 +10,7 @@ extern void computeFOLLOW();
 extern void constructItemSets();
 extern void parseInput(vector<string>);
 extern vector<string> tokenize(string);
+extern void buildParsingTable();
 
 int main() {
   initializeGrammar();
@@ -24,6 +25,7 @@ int main() {
   getline(cin, input);
 
   vector<string> tokens = tokenize(input);
+  buildParsingTable();
 
   parseInput(tokens);
 
