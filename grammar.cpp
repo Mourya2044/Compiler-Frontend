@@ -16,25 +16,23 @@ string startSymbol = "Program";
 
 void initializeGrammar() {
     // Program structure
-    grammar.push_back({"Program",    {"main", "(", ")", "{", "DeclList", "StmtList", "}"}});
+    grammar.push_back({"Program",    {"main", "(", ")", "Block"}});
+
+    // Block items (declarations and statements can appear in any order)
+    grammar.push_back({"ItemList",   {"Item", "ItemList"}});
+    grammar.push_back({"ItemList",   {"epsilon"}});
+    grammar.push_back({"Item",       {"Decl"}});
+    grammar.push_back({"Item",       {"AssignStmt"}});
+    grammar.push_back({"Item",       {"ReadStmt"}});
+    grammar.push_back({"Item",       {"IncStmt"}});
+    grammar.push_back({"Item",       {"ForStmt"}});
 
     // Declarations
-    grammar.push_back({"DeclList",   {"Decl", "DeclList"}});
-    grammar.push_back({"DeclList",   {"epsilon"}});
     grammar.push_back({"Decl",       {"Type", "IdList", ";"}});
     grammar.push_back({"Type",       {"int"}});
     grammar.push_back({"Type",       {"float"}});
     grammar.push_back({"IdList",     {"id", ",", "IdList"}});
     grammar.push_back({"IdList",     {"id"}});
-
-    // Statements
-    grammar.push_back({"StmtList",   {"Stmt", "StmtList"}});
-    grammar.push_back({"StmtList",   {"epsilon"}});
-    grammar.push_back({"Stmt",       {"AssignStmt"}});
-    grammar.push_back({"Stmt",       {"ReadStmt"}});
-    grammar.push_back({"Stmt",       {"IncStmt"}});
-    grammar.push_back({"Stmt",       {"ForStmt"}});
-    grammar.push_back({"Stmt",       {"Decl"}});  // Allow declarations anywhere
 
     // Assignment:  id = Expr ;
     grammar.push_back({"AssignStmt", {"id", "=", "Expr", ";"}});
@@ -54,8 +52,8 @@ void initializeGrammar() {
     grammar.push_back({"Update",     {"id", "--"}});
     grammar.push_back({"Update",     {"id", "=", "Expr"}});
 
-    // Block:  { StmtList }
-    grammar.push_back({"Block",      {"{", "StmtList", "}"}});
+    // Block:  { ItemList }
+    grammar.push_back({"Block",      {"{", "ItemList", "}"}});
 
     // Relational operators
     grammar.push_back({"Relop", {"<"}});
@@ -75,9 +73,9 @@ void initializeGrammar() {
     grammar.push_back({"Factor", {"num"}});
 
     nonterminals = {
-        "Program", "DeclList", "Decl", "Type", "IdList",
-        "StmtList", "Stmt", "AssignStmt", "ReadStmt", "IncStmt",
-        "ForStmt", "Init", "Cond", "Update", "Block",
+        "Program", "Block", "ItemList", "Item", "Decl", "Type", "IdList",
+        "AssignStmt", "ReadStmt", "IncStmt",
+        "ForStmt", "Init", "Cond", "Update",
         "Relop", "Expr", "Term", "Factor"
     };
 

@@ -1,0 +1,109 @@
+grammar.push_back({"Program",    {"main", "(", ")", "{", "DeclList", "StmtList", "}"}});
+
+    // Declarations
+    grammar.push_back({"DeclList",   {"Decl", "DeclList"}});
+    grammar.push_back({"DeclList",   {"epsilon"}});
+    grammar.push_back({"Decl",       {"Type", "IdList", ";"}});
+    grammar.push_back({"Type",       {"int"}});
+    grammar.push_back({"Type",       {"float"}});
+    grammar.push_back({"IdList",     {"id", ",", "IdList"}});
+    grammar.push_back({"IdList",     {"id"}});
+
+    // Statements
+    grammar.push_back({"StmtList",   {"Stmt", "StmtList"}});
+    grammar.push_back({"StmtList",   {"epsilon"}});
+    grammar.push_back({"Stmt",       {"AssignStmt"}});
+    grammar.push_back({"Stmt",       {"ReadStmt"}});
+    grammar.push_back({"Stmt",       {"IncStmt"}});
+    grammar.push_back({"Stmt",       {"ForStmt"}});
+    grammar.push_back({"Stmt",       {"Decl"}});  // Allow declarations anywhere
+
+    // Assignment:  id = Expr ;
+    grammar.push_back({"AssignStmt", {"id", "=", "Expr", ";"}});
+
+    // Read:  read ( IdList ) ;
+    grammar.push_back({"ReadStmt",   {"read", "(", "IdList", ")", ";"}});
+
+    // Increment / Decrement:  id++ ;  |  id-- ;
+    grammar.push_back({"IncStmt",    {"id", "++", ";"}});
+    grammar.push_back({"IncStmt",    {"id", "--", ";"}});
+
+    // For loop:  for ( Init ; Cond ; Update ) Block
+    grammar.push_back({"ForStmt",    {"for", "(", "Init", ";", "Cond", ";", "Update", ")", "Block"}});
+    grammar.push_back({"Init",       {"id", "=", "Expr"}});
+    grammar.push_back({"Cond",       {"Expr", "Relop", "Expr"}});
+    grammar.push_back({"Update",     {"id", "++"}});
+    grammar.push_back({"Update",     {"id", "--"}});
+    grammar.push_back({"Update",     {"id", "=", "Expr"}});
+
+    // Block:  { StmtList }
+    grammar.push_back({"Block",      {"{", "StmtList", "}"}});
+
+    // Relational operators
+    grammar.push_back({"Relop", {"<"}});
+    grammar.push_back({"Relop", {">"}});
+    grammar.push_back({"Relop", {"=="}});
+    grammar.push_back({"Relop", {"!="}});
+
+    // Expressions  (left-recursive — handled by LR parser)
+    grammar.push_back({"Expr",   {"Expr", "+", "Term"}});
+    grammar.push_back({"Expr",   {"Expr", "-", "Term"}});
+    grammar.push_back({"Expr",   {"Term"}});
+    grammar.push_back({"Term",   {"Term", "*", "Factor"}});
+    grammar.push_back({"Term",   {"Term", "/", "Factor"}});
+    grammar.push_back({"Term",   {"Factor"}});
+    grammar.push_back({"Factor", {"(", "Expr", ")"}});
+    grammar.push_back({"Factor", {"id"}});
+    grammar.push_back({"Factor", {"num"}});
+
+    nonterminals = {
+        "Program", "DeclList", "Decl", "Type", "IdList",
+        "StmtList", "Stmt", "AssignStmt", "ReadStmt", "IncStmt",
+        "ForStmt", "Init", "Cond", "Update", "Block",
+        "Relop", "Expr", "Term", "Factor"
+    };
+
+    terminals = {
+        "main", "int", "float", "read", "for",
+        "(", ")", "{", "}", ";", ",",
+        "id", "num",
+        "=", "++", "--", "+", "-", "*", "/",
+        "<", ">", "==", "!=", "$"
+    };
+
+Item sets constructed: 81 states
+Conflict in state 5 on 'float': r2 vs s9
+Conflict in state 5 on 'int': r2 vs s10
+Conflict in state 6 on 'float': r2 vs s9
+Conflict in state 6 on 'int': r2 vs s10
+
+Root cause:
+
+In grammar.cpp, DeclList has an epsilon rule.
+In grammar.cpp, Stmt can also start with Decl.
+That makes int and float belong to FOLLOW(DeclList), so in states 5 and 6 the parser can either:
+reduce by r2: DeclList -> epsilon
+shift into Type: int/float
+SLR uses FOLLOW sets for reduce lookaheads, so this grammar shape creates shift/reduce conflicts there.
+What the reported conflicts mean:
+
+r2 is DeclList -> epsilon.
+s9 and s10 are shifts on float and int.
+So the parser is undecided whether declarations are over, or another declaration starts.
+How to eliminate conflicts:
+
+If you want C-like style (all declarations before statements):
+Keep Program -> ... DeclList StmtList ...
+Remove Stmt -> Decl from grammar.cpp
+If you want declarations anywhere in a block:
+Replace separate DeclList and StmtList split with a single list of block items.
+Example shape:
+Block -> { ItemList }
+ItemList -> Item ItemList | epsilon
+Item -> Decl | AssignStmt | ReadStmt | IncStmt | ForStmt
+Alternative without grammar rewrite:
+Switch from SLR to canonical LR(1), which often resolves these FOLLOW-based spurious conflicts.
+Recommended minimal fix:
+
+Remove Stmt -> Decl in grammar.cpp if declarations-inside-statements are not required.
+Keep the rest unchanged.

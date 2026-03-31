@@ -110,9 +110,5 @@ vector<Token> tokenize(const string& input) {
 
     tokens.push_back(Token("$", "$", line, col));
 
-    cout << "\nTokens: ";
-    for (auto& t : tokens) cout << t.type << " ";
-    cout << "\n";
-
     return tokens;
 }

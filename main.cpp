@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <string>
 #include <vector>
 #include "token.h"
@@ -34,12 +35,21 @@ int main() {
     printParsingTables();
 
     // Read input program (blank line to finish)
-    cout << "\nEnter program (blank line to finish):\n";
+    cout << "\nEnter file name: ";
+    string filename;
+    getline(cin, filename);
+    
+    ifstream inputFile(filename);
+    if (!inputFile.is_open()) {
+        cerr << "Error: File '" << filename << "' does not exist or cannot be opened." << endl;
+        return 1;
+    }
+    
     string input, line;
-    while (getline(cin, line)) {
-        if (line.empty()) break;
+    while (getline(inputFile, line)) {
         input += line + "\n";
     }
+    inputFile.close();
 
     // Tokenize with location tracking
     vector<Token> tokens = tokenize(input);
