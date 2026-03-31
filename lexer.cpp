@@ -3,104 +3,116 @@
 #include <string>
 #include <vector>
 #include <unordered_set>
+#include "token.h"
 
 using namespace std;
 
-// ── Token ────────────────────────────────────────────────────────────────────
-// Each token carries both its grammatical type (used by the parser) and its
-// original lexeme (used by the symbol table).
-struct Token {
-  string type;    // e.g. "id", "num", "int", "for", "+", ...
-  string value;   // e.g. "counter", "3.14", "int", "for", "+"
-};
+// ── Symbol table forward declarations (defined in symbol_table.cpp) ──────────
+extern void enterScope();
+extern void exitScope();
+extern void insertSymbol(const string& name, const string& type);
+extern bool lookupSymbol(const string& name);
 
-// ── Keyword set ──────────────────────────────────────────────────────────────
-unordered_set<string> keywords = {"main", "int", "float", "for", "read"};
+static unordered_set<string> keywords = {"main", "int", "float", "for", "read"};
 
-// ── tokenize ─────────────────────────────────────────────────────────────────
-// Returns a vector of Tokens.  The last token is always {"$", "$"}.
-// FIX 1: actual identifier names are now preserved in Token::value instead of
-//         being discarded (old code pushed only the string "id").
-// FIX 2: unknown characters are skipped with a warning rather than silently
-//         dropped, making lexer errors visible.
+// Returns the token stream with location information
 vector<Token> tokenize(const string& input) {
-  vector<Token> tokens;
+    vector<Token> tokens;
+    int line = 1, col = 1;
 
-  for (int i = 0; i < (int)input.size(); i++) {
+    for (int i = 0; i < (int)input.size(); i++) {
+        int startLine = line, startCol = col;
 
-    // ── whitespace ───────────────────────────────────────────────────────────
-    if (isspace(input[i])) continue;
+        // Skip whitespace and track line/column
+        if (isspace((unsigned char)input[i])) {
+            if (input[i] == '\n') {
+                line++;
+                col = 1;
+            } else {
+                col++;
+            }
+            continue;
+        }
 
-    // ── identifiers / keywords ───────────────────────────────────────────────
-    if (isalpha(input[i]) || input[i] == '_') {
-      string word;
-      while (i < (int)input.size() && (isalnum(input[i]) || input[i] == '_')) {
-        word += input[i++];
-      }
-      i--;
+        // Skip single-line comments  //...
+        if (i + 1 < (int)input.size() && input[i] == '/' && input[i+1] == '/') {
+            col += 2;
+            i += 2;
+            while (i < (int)input.size() && input[i] != '\n') {
+                col++;
+                i++;
+            }
+            continue;
+        }
 
-      if (keywords.count(word))
-        tokens.push_back({word, word});   // keyword: type == value
-      else
-        tokens.push_back({"id", word});   // FIX 1: preserve actual name
-      continue;
+        // Identifier / keyword
+        if (isalpha((unsigned char)input[i]) || input[i] == '_') {
+            string word;
+            while (i < (int)input.size() &&
+                   (isalnum((unsigned char)input[i]) || input[i] == '_')) {
+                word += input[i++];
+                col++;
+            }
+            i--;
+            col--;
+            
+            if (keywords.count(word)) {
+                tokens.push_back(Token(word, word, startLine, startCol));
+            } else {
+                tokens.push_back(Token("id", word, startLine, startCol));
+            }
+            continue;
+        }
+
+        // Integer or float literal
+        if (isdigit((unsigned char)input[i])) {
+            string num;
+            while (i < (int)input.size() && isdigit((unsigned char)input[i])) {
+                num += input[i++];
+                col++;
+            }
+            if (i < (int)input.size() && input[i] == '.') {
+                num += input[i++];
+                col++;
+                while (i < (int)input.size() && isdigit((unsigned char)input[i])) {
+                    num += input[i++];
+                    col++;
+                }
+            }
+            i--;
+            col--;
+            tokens.push_back(Token("num", num, startLine, startCol));
+            continue;
+        }
+
+        // Two-character operators — check before single-char
+        if (i + 1 < (int)input.size()) {
+            string two = {input[i], input[i+1]};
+            if (two == "==" || two == "!=" || two == "++" || two == "--") {
+                tokens.push_back(Token(two, two, startLine, startCol));
+                col += 2;
+                i++;
+                continue;
+            }
+        }
+
+        // Single-character tokens
+        string single(1, input[i]);
+        const string valid = "+-*/=<>(){};,";
+        if (valid.find(input[i]) != string::npos) {
+            tokens.push_back(Token(single, single, startLine, startCol));
+            col++;
+        } else {
+            cerr << "Unrecognised character: '" << input[i] << "' at line " << startLine 
+                 << ", column " << startCol << "\n";
+        }
     }
 
-    // ── numeric literals ─────────────────────────────────────────────────────
-    if (isdigit(input[i])) {
-      string num;
-      bool hasDot = false;
-      while (i < (int)input.size() && (isdigit(input[i]) || (input[i] == '.' && !hasDot))) {
-        if (input[i] == '.') hasDot = true;
-        num += input[i++];
-      }
-      i--;
-      tokens.push_back({"num", num});     // preserve numeric value
-      continue;
-    }
+    tokens.push_back(Token("$", "$", line, col));
 
-    // ── two-character operators (must be checked before single-char) ─────────
-    if (i + 1 < (int)input.size()) {
-      string two = string(1, input[i]) + input[i + 1];
-      if (two == "==" || two == "!=" || two == "++" || two == "--") {
-        tokens.push_back({two, two});
-        i++;
-        continue;
-      }
-    }
+    cout << "\nTokens: ";
+    for (auto& t : tokens) cout << t.type << " ";
+    cout << "\n";
 
-    // ── single-character operators / punctuation ─────────────────────────────
-    {
-      char c = input[i];
-      static const string singles = "+-*/=<>(){};,";
-      if (singles.find(c) != string::npos) {
-        string s(1, c);
-        tokens.push_back({s, s});
-        continue;
-      }
-    }
-
-    // ── unrecognised character — FIX 2: report instead of silently skip ──────
-    cerr << "Lexer warning: unrecognised character '" << input[i]
-         << "' (ASCII " << (int)(unsigned char)input[i] << ") — skipped\n";
-  }
-
-  tokens.push_back({"$", "$"});
-
-  // ── print token stream ───────────────────────────────────────────────────
-  cout << "\nTokens:\n";
-  for (auto& t : tokens)
-    cout << "[" << t.type << (t.type != t.value ? ":" + t.value : "") << "] ";
-  cout << "\n\n";
-
-  return tokens;
-}
-
-// ── helper: extract just the type strings for the parser ─────────────────────
-// The parser works on vector<string> of token types; use this after tokenize().
-vector<string> tokenTypes(const vector<Token>& tokens) {
-  vector<string> types;
-  types.reserve(tokens.size());
-  for (auto& t : tokens) types.push_back(t.type);
-  return types;
+    return tokens;
 }
