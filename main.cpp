@@ -57,8 +57,8 @@ int main() {
     // Open global scope, parse, close
     enterScope();
     parseInput(tokens);
-    printSymbolTable();
     exitScope();
+    printSymbolTable();
 
     return 0;
 }
