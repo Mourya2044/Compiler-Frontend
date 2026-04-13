@@ -270,36 +270,32 @@ extern void enterScope();
 extern void exitScope();
 
 void parseInput(vector<Token> tokens) {
-  static int braceDepth = 0;  // Track nesting depth for scope management
-  static stack<int>
-      blockDepths;  // Track the brace depth when each block started
-  stack<int> stk;
-  stack<string>
-      semantic;  // Track semantic values (lexemes and computed values)
+  static int braceDepth = 0;            // Track nesting depth for scope management
+  static stack<int> blockDepths;        // Track the brace depth when each block started
+  stack<int> st;                        // State stack for LR parsing
+  stack<string> semantic;               // Track semantic values (lexemes and computed values)
 
-  stk.push(0);
-  semantic.push("");  // dummy initial value
+  st.push(0);
+  semantic.push("");
   int i = 0;
-  braceDepth = 0;                                  // Reset for new parse
-  while (!blockDepths.empty()) blockDepths.pop();  // Clear block depth tracking
+  braceDepth = 0;
+  while (!blockDepths.empty()) blockDepths.pop();
 
   cout << "\n--- Parsing ---\n";
 
   while (true) {
-    int state = stk.top();
+    int state = st.top();
     const string& tokenType = tokens[i].type;
     const string& lexeme = tokens[i].lexeme;
 
     auto key = make_pair(state, tokenType);
     if (!ACTION.count(key)) {
-      cout << "Syntax error at token '" << lexeme << "' (line "
-           << tokens[i].line << ", col " << tokens[i].col << ")\n";
+      cout << "Syntax error at token '" << lexeme << "' (line " << tokens[i].line << ", col " << tokens[i].col << ")\n";
       return;
     }
 
     const string& action = ACTION[key];
-    // cout << "State " << state << "  token '" << tokenType << "'  action "
-    //      << action << "\n";
+    // cout << "State " << state << "  token '" << tokenType << "'  action " << action << "\n";
 
     if (action == "acc") {
       cout << "[OK] Input accepted\n";
@@ -309,20 +305,14 @@ void parseInput(vector<Token> tokens) {
     if (action[0] == 's') {
       // SHIFT
       int nextState = stoi(action.substr(1));
-      stk.push(nextState);
-      semantic.push(lexeme);  // Push the lexeme as semantic value
+      st.push(nextState);
+      semantic.push(lexeme);
 
-      // Handle scope push for opening braces
       if (lexeme == "{") {
         braceDepth++;
-        blockDepths.push(braceDepth);  // Record the depth of this block
-        if (braceDepth >
-            1) {  // First { is program level, additional { are nested blocks
-          enterScope();
-        }
-        // cerr << "[DEBUG] shift '{' at depth " << braceDepth << "\n";
+        blockDepths.push(braceDepth);
+        if (braceDepth > 1) enterScope();
       } else if (lexeme == "}") {
-        // cerr << "[DEBUG] shift '}' at depth " << braceDepth << "\n";
         braceDepth--;
       }
 
@@ -338,34 +328,29 @@ void parseInput(vector<Token> tokens) {
 
       // Pop semantic values and create new semantic value
       vector<string> rhsValues;
-      int popCount =
-          (p.rhs.size() == 1 && p.rhs[0] == "epsilon") ? 0 : (int)p.rhs.size();
+      int popCount = (p.rhs.size() == 1 && p.rhs[0] == "epsilon") ? 0 : (int)p.rhs.size();
 
       for (int k = 0; k < popCount; k++) {
         rhsValues.push_back(semantic.top());
         semantic.pop();
-        stk.pop();
+        st.pop();
       }
       reverse(rhsValues.begin(), rhsValues.end());
 
       // Semantic action: Handle declarations
       string semanticValue = "";
       if (p.lhs == "Decl") {
-        // Decl → Type IdList ;
-        // rhsValues[0] = type, rhsValues[1] = idlist (comma-separated)
         string type = rhsValues[0];
         string idlist = rhsValues[1];
 
-        // Split comma-separated identifiers and insert all
+
         size_t pos = 0;
         while (pos < idlist.length()) {
-          // Find next comma or end
           size_t comma = idlist.find(',', pos);
           if (comma == string::npos) {
             comma = idlist.length();
           }
           string id = idlist.substr(pos, comma - pos);
-          // Trim whitespace
           while (!id.empty() && isspace(id.front())) id = id.substr(1);
           while (!id.empty() && isspace(id.back()))
             id = id.substr(0, id.length() - 1);
@@ -376,41 +361,33 @@ void parseInput(vector<Token> tokens) {
         }
         semanticValue = type;  // Pass type forward
       } else if (p.lhs == "Type") {
-        // Type → int | float
         semanticValue = rhsValues[0];  // Just the type itself
       } else if (p.lhs == "IdList") {
-        // IdList → id | id , IdList
         if (p.rhs.size() == 1) {
-          // IdList → id
           semanticValue = rhsValues[0];
         } else {
-          // IdList → id , IdList
-          // rhsValues[0] = id, rhsValues[2] = IdList value (comma-separated)
           semanticValue = rhsValues[0] + "," + rhsValues[2];
         }
       } else if (p.lhs == "Block") {
-        // Block → { StmtList }
-        // Pop the scope that was created for this block
         if (!blockDepths.empty()) {
           int blockDepth = blockDepths.top();
           blockDepths.pop();
-        //   cerr << "[DEBUG] reduce Block that was at depth " << blockDepth << "\n";
-          if (blockDepth > 1) {  // Nested block (not program level)
+          if (blockDepth > 1) {
             exitScope();
           }
         }
         semanticValue = "";
       } else {
-        semanticValue = "";  // Default for other productions
+        semanticValue = "";
       }
 
-      int top = stk.top();
+      int top = st.top();
       if (!GOTO.count({top, p.lhs})) {
         cout << "GOTO error after reducing to " << p.lhs << "\n";
         return;
       }
 
-      stk.push(GOTO[{top, p.lhs}]);
+      st.push(GOTO[{top, p.lhs}]);
       semantic.push(semanticValue);
     } else {
       cout << "Unknown action: " << action << "\n";

@@ -17,12 +17,10 @@ static int nextScopeId = 0;
 
 void enterScope() {
     scopes.push_back({nextScopeId++, {}});
-    // cerr << "[DEBUG] enterScope: now have " << scopes.size() << " scopes\n";
 }
 
 void exitScope() {
     if (!scopes.empty()) {
-        // cerr << "[DEBUG] exitScope: removed scope with " << scopes.back().size() << " vars, now have " << (scopes.size()-1) << " scopes\n";
         closedScopes.push_back(scopes.back());
         scopes.pop_back();
     }
@@ -40,7 +38,6 @@ bool insertSymbol(const string& name, const string& type) {
         cerr << "Redeclaration of '" << name << "' in same scope\n";
         return false;
     }
-    // cerr << "[DEBUG] insertSymbol: " << name << " : " << type << " into scope " << (scopes.size()-1) << "\n";
     cur[name] = type;
     return true;
 }

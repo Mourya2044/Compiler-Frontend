@@ -1,11 +1,11 @@
-main() {            
-    int i, j, sum;
-    read(i, j);
-    sum = 0;
-    for(i = 0; i < 5; i++) {
-        int num;
-        for(j = 0; j < 3; j++) {
-            sum = sum + j;
-        }
+main() {
+    int x, y;
+    float result;
+    x = 10;
+    y = 5;
+    for (x = 0; x < 10; x++) {
+        int temp;
+        temp = x;
+        result = result + temp;
     }
 }
